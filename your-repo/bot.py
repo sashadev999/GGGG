@@ -351,26 +351,26 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # آماده کردن پیام برای ادمین
     admin_message = f"""
-🛒 سفارش جدید دریافت شد!
+🛒 *سفارش جدید دریافت شد!*
 
-📌 اطلاعات سفارش:
-🔹 شماره سفارش: {order_id}
+📌 *اطلاعات سفارش*:
+🔹 شماره سفارش: `{order_id}`
 🔹 محصول: {order['product_name']}
 🔹 قیمت اصلی: {order['price']}
 """
-    
+
     if 'discount_code' in order:
         admin_message += f"""
 🔹 کد تخفیف: {order['discount_code']}
 🔹 مبلغ تخفیف: {order['discount_amount']:,} تومان
 🔹 قیمت نهایی: {order['final_price']:,} تومان
 """
-    
+
     admin_message += f"""
 🔹 تاریخ سفارش: {now}
 
-👤 اطلاعات خریدار:
-🔹 آیدی کاربر: {user_id}
+👤 *اطلاعات خریدار*:
+🔹 آیدی کاربر: `{user_id}`
 🔹 یوزرنیم: @{username}
 🔹 نام: {first_name} {last_name}
 """
@@ -381,20 +381,47 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await context.bot.send_photo(
                 chat_id=ADMIN_ID,
                 photo=photo_file_id,
-                caption=admin_message
+                caption=admin_message,
+                parse_mode='Markdown'
             )
         else:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
-                text=f"{admin_message}\n📝 رسید پرداخت:\n{payment_proof}"
+                text=f"{admin_message}\n📝 رسید پرداخت:\n{payment_proof}",
+                parse_mode='Markdown'
             )
     except Exception as e:
         logger.error(f"Error sending order notification to admin: {e}")
     
+    # ارسال پیام به کاربر
+    user_message = f"""
+✅ *سفارش شما با موفقیت ثبت شد*
+
+📌 *اطلاعات سفارش*:
+🔹 شماره سفارش: `{order_id}`
+🔹 محصول: {order['product_name']}
+🔹 قیمت: {order['price']}
+"""
+
+    if 'discount_code' in order:
+        user_message += f"""
+🔹 کد تخفیف: {order['discount_code']}
+🔹 مبلغ تخفیف: {order['discount_amount']:,} تومان
+🔹 قیمت نهایی: {order['final_price']:,} تومان
+"""
+
+    user_message += f"""
+🔹 تاریخ سفارش: {now}
+
+📝 *وضعیت سفارش*:
+سفارش شما در حال پردازش است. ادمین به زودی به شما اطلاع خواهد داد.
+"""
+
     await update.message.reply_text(
-        "✅ رسید پرداخت شما دریافت شد. سفارش شما در حال پردازش است.\n"
-        "ادمین به زودی به شما اطلاع خواهد داد."
+        user_message,
+        parse_mode='Markdown'
     )
+    
     return await start(update, context)
 
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
