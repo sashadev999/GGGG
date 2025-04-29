@@ -2003,27 +2003,75 @@ async def show_customer_profile(update: Update, context: ContextTypes.DEFAULT_TY
     
     profile = db['user_profiles'][str(user_id)]
     
-    # محاسبه تعداد معرفی‌های موفق
-    successful_referrals = len(profile.get('referrals', []))
-    remaining_referrals = 3 - successful_referrals
+    # محاسبه آمار کاربر
+    user_orders = [order for order in db['orders'].values() if order['user_id'] == user_id]
+    profile['total_orders'] = len(user_orders)
+    profile['total_spent'] = sum(int(str(order['price']).replace('تومان', '').replace(',', '').strip()) 
+                                for order in user_orders)
+    
+    # محاسبه امتیازات و سطح کاربر
+    profile['points'] = profile['total_orders'] * 10 + profile['total_spent'] // 100000
+    if profile['points'] >= 1000:
+        profile['level'] = 'طلایی'
+    elif profile['points'] >= 500:
+        profile['level'] = 'نقره‌ای'
+    elif profile['points'] >= 100:
+        profile['level'] = 'برنزی'
+    
+    save_db(db)
     
     text = f"""
-👥 *معرفی به دوستان*
+👤 *پروفایل کاربری*
 
-🔹 تعداد معرفی‌های موفق: {successful_referrals}
-🔹 تعداد معرفی‌های باقیمانده تا دریافت کد تخفیف: {remaining_referrals}
+🔹 نام: {profile['name']}
+🔹 یوزرنیم: @{profile['username']}
+🔹 تاریخ عضویت: {profile['join_date']}
+🔹 سطح: {profile['level']}
+🔹 امتیاز: {profile['points']}
 
-💎 *جوایز معرفی*:
-🔸 با معرفی 3 نفر، یک کد تخفیف 20% دریافت کنید
-🔸 هر معرفی موفق، 100 امتیاز به حساب شما اضافه می‌شود
+📊 *آمار خرید*:
+🔹 تعداد سفارشات: {profile['total_orders']}
+🔹 مجموع خرید: {profile['total_spent']:,} تومان
+🔹 اعتبار: {profile['credit']:,} تومان
 
-📱 *لینک معرفی شما*:
-`https://t.me/{context.bot.username}?start={profile['referral_code']}`
+💎 *مزایای سطح {profile['level']}*:
+"""
+    
+    if profile['level'] == 'طلایی':
+        text += """
+🔸 تخفیف 20% روی همه محصولات
+🔸 پشتیبانی VIP
+🔸 ارسال رایگان
+🔸 هدیه ماهانه
+"""
+    elif profile['level'] == 'نقره‌ای':
+        text += """
+🔸 تخفیف 10% روی همه محصولات
+🔸 پشتیبانی ویژه
+🔸 ارسال رایگان
+"""
+    else:
+        text += """
+🔸 تخفیف 5% روی همه محصولات
+🔸 پشتیبانی استاندارد
+"""
 
-📝 *نحوه استفاده*:
-1. لینک بالا را برای دوستان خود ارسال کنید
-2. وقتی دوستان شما از طریق این لینک عضو شوند، به عنوان معرفی موفق ثبت می‌شود
-3. پس از 3 معرفی موفق، کد تخفیف برای شما ارسال می‌شود
+    # نمایش تاریخچه سفارشات
+    if user_orders:
+        text += "\n📅 *تاریخچه سفارشات*:\n"
+        # مرتب‌سازی سفارشات بر اساس تاریخ ایجاد
+        sorted_orders = sorted(
+            user_orders,
+            key=lambda x: x.get('created_at', '2000-01-01 00:00:00'),
+            reverse=True
+        )[:5]
+        
+        for order in sorted_orders:
+            text += f"""
+🔹 {order.get('created_at', 'تاریخ نامشخص')}:
+🔸 محصول: {order.get('product_name', 'نامشخص')}
+🔸 مبلغ: {order.get('price', 'نامشخص')}
+🔸 وضعیت: {order.get('status', 'نامشخص')}
 """
     
     buttons = [
@@ -2032,19 +2080,35 @@ async def show_customer_profile(update: Update, context: ContextTypes.DEFAULT_TY
     
     reply_markup = InlineKeyboardMarkup([buttons])
     
-    if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-    else:
-        await update.message.reply_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+    try:
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Error in show_customer_profile: {e}")
+        try:
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    text.replace('*', '').replace('_', ''),
+                    reply_markup=reply_markup
+                )
+            else:
+                await update.message.reply_text(
+                    text.replace('*', '').replace('_', ''),
+                    reply_markup=reply_markup
+                )
+        except Exception as e:
+            logger.error(f"Error in show_customer_profile (fallback): {e}")
     
     return CUSTOMER_PROFILE
 
