@@ -886,6 +886,7 @@ async def handle_add_discount(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ADD_DISCOUNT
 
 async def list_discounts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """نمایش لیست کدهای تخفیف"""
     if update.effective_user.id != ADMIN_ID:
         await update.callback_query.answer("شما دسترسی ندارید!", show_alert=True)
         return MENU
@@ -898,13 +899,13 @@ async def list_discounts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         text = "📋 لیست کدهای تخفیف:\n\n"
         for code, details in discount_codes.items():
-            status = "✅ فعال" if details['active'] else "❌ غیرفعال"
+            status = "✅ فعال" if details.get('active', True) else "❌ غیرفعال"
             text += f"""
 🔹 کد: {code}
-🔹 درصد تخفیف: {details['percentage']}%
-🔹 تعداد استفاده باقیمانده: {details['remaining_uses']}
+🔹 درصد تخفیف: {details.get('percentage', 0)}%
+🔹 تعداد استفاده باقیمانده: {details.get('remaining_uses', 0)}
 🔹 وضعیت: {status}
-🔹 تاریخ ایجاد: {details['created_at']}
+🔹 تاریخ ایجاد: {details.get('created_at', 'نامشخص')}
 -------------------"""
     
     buttons = [
@@ -945,23 +946,31 @@ async def delete_discount(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return DELETE_DISCOUNT
 
 async def handle_delete_discount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """حذف کد تخفیف"""
     if update.effective_user.id != ADMIN_ID:
         await update.callback_query.answer("شما دسترسی ندارید!", show_alert=True)
         return MENU
     
-    code = update.callback_query.data.split('_')[2]
-    db = load_db()
-    
-    if code in db['discount_codes']:
-        del db['discount_codes'][code]
-        save_db(db)
+    try:
+        code = update.callback_query.data.split('_')[2]
+        db = load_db()
+        
+        if code in db.get('discount_codes', {}):
+            del db['discount_codes'][code]
+            save_db(db)
+            await update.callback_query.edit_message_text(
+                f"✅ کد تخفیف {code} با موفقیت حذف شد.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data='manage_discounts')]])
+            )
+        else:
+            await update.callback_query.edit_message_text(
+                "❌ کد تخفیف مورد نظر یافت نشد.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data='manage_discounts')]])
+            )
+    except Exception as e:
+        logger.error(f"Error in handle_delete_discount: {e}")
         await update.callback_query.edit_message_text(
-            f"✅ کد تخفیف {code} با موفقیت حذف شد.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data='manage_discounts')]])
-        )
-    else:
-        await update.callback_query.edit_message_text(
-            "❌ کد تخفیف مورد نظر یافت نشد.",
+            "❌ خطا در حذف کد تخفیف. لطفا دوباره تلاش کنید.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data='manage_discounts')]])
         )
     
@@ -1986,81 +1995,35 @@ async def show_customer_profile(update: Update, context: ContextTypes.DEFAULT_TY
             'level': 'برنزی',
             'points': 0,
             'phone': None,
-            'address': None
+            'address': None,
+            'referrals': [],
+            'referral_code': f"REF{user_id}"
         }
         save_db(db)
     
     profile = db['user_profiles'][str(user_id)]
     
-    # محاسبه آمار کاربر
-    user_orders = [order for order in db['orders'].values() if order['user_id'] == user_id]
-    profile['total_orders'] = len(user_orders)
-    profile['total_spent'] = sum(int(str(order['price']).replace('تومان', '').replace(',', '').strip()) 
-                                for order in user_orders)
-    
-    # محاسبه امتیازات و سطح کاربر
-    profile['points'] = profile['total_orders'] * 10 + profile['total_spent'] // 100000
-    if profile['points'] >= 1000:
-        profile['level'] = 'طلایی'
-    elif profile['points'] >= 500:
-        profile['level'] = 'نقره‌ای'
-    elif profile['points'] >= 100:
-        profile['level'] = 'برنزی'
-    
-    save_db(db)
+    # محاسبه تعداد معرفی‌های موفق
+    successful_referrals = len(profile.get('referrals', []))
+    remaining_referrals = 3 - successful_referrals
     
     text = f"""
-👤 *پروفایل کاربری*
+👥 *معرفی به دوستان*
 
-🔹 نام: {profile['name']}
-🔹 یوزرنیم: @{profile['username']}
-🔹 تاریخ عضویت: {profile['join_date']}
-🔹 سطح: {profile['level']}
-🔹 امتیاز: {profile['points']}
+🔹 تعداد معرفی‌های موفق: {successful_referrals}
+🔹 تعداد معرفی‌های باقیمانده تا دریافت کد تخفیف: {remaining_referrals}
 
-📊 *آمار خرید*:
-🔹 تعداد سفارشات: {profile['total_orders']}
-🔹 مجموع خرید: {profile['total_spent']:,} تومان
-🔹 اعتبار: {profile['credit']:,} تومان
+💎 *جوایز معرفی*:
+🔸 با معرفی 3 نفر، یک کد تخفیف 20% دریافت کنید
+🔸 هر معرفی موفق، 100 امتیاز به حساب شما اضافه می‌شود
 
-💎 *مزایای سطح {profile['level']}*:
-"""
-    
-    if profile['level'] == 'طلایی':
-        text += """
-🔸 تخفیف 20% روی همه محصولات
-🔸 پشتیبانی VIP
-🔸 ارسال رایگان
-🔸 هدیه ماهانه
-"""
-    elif profile['level'] == 'نقره‌ای':
-        text += """
-🔸 تخفیف 10% روی همه محصولات
-🔸 پشتیبانی ویژه
-🔸 ارسال رایگان
-"""
-    else:
-        text += """
-🔸 تخفیف 5% روی همه محصولات
-🔸 پشتیبانی استاندارد
-"""
+📱 *لینک معرفی شما*:
+`https://t.me/{context.bot.username}?start={profile['referral_code']}`
 
-    # نمایش تاریخچه سفارشات
-    if user_orders:
-        text += "\n📅 *تاریخچه سفارشات*:\n"
-        # مرتب‌سازی سفارشات بر اساس تاریخ ایجاد (اگر موجود باشد)
-        sorted_orders = sorted(
-            user_orders,
-            key=lambda x: x.get('created_at', '2000-01-01 00:00:00'),
-            reverse=True
-        )[:5]
-        
-        for order in sorted_orders:
-            text += f"""
-🔹 {order.get('created_at', 'تاریخ نامشخص')}:
-🔸 محصول: {order.get('product_name', 'نامشخص')}
-🔸 مبلغ: {order.get('price', 'نامشخص')}
-🔸 وضعیت: {order.get('status', 'نامشخص')}
+📝 *نحوه استفاده*:
+1. لینک بالا را برای دوستان خود ارسال کنید
+2. وقتی دوستان شما از طریق این لینک عضو شوند، به عنوان معرفی موفق ثبت می‌شود
+3. پس از 3 معرفی موفق، کد تخفیف برای شما ارسال می‌شود
 """
     
     buttons = [
@@ -2069,35 +2032,19 @@ async def show_customer_profile(update: Update, context: ContextTypes.DEFAULT_TY
     
     reply_markup = InlineKeyboardMarkup([buttons])
     
-    try:
-        if update.callback_query:
-            await update.callback_query.answer()
-            await update.callback_query.edit_message_text(
-                text,
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text(
-                text,
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
-    except Exception as e:
-        logger.error(f"Error in show_customer_profile: {e}")
-        try:
-            if update.callback_query:
-                await update.callback_query.edit_message_text(
-                    text.replace('*', '').replace('_', ''),
-                    reply_markup=reply_markup
-                )
-            else:
-                await update.message.reply_text(
-                    text.replace('*', '').replace('_', ''),
-                    reply_markup=reply_markup
-                )
-        except Exception as e:
-            logger.error(f"Error in show_customer_profile (fallback): {e}")
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
     
     return CUSTOMER_PROFILE
 
@@ -2188,6 +2135,20 @@ def main() -> None:
             ],
             CUSTOMER_PROFILE: [
                 CallbackQueryHandler(show_customer_profile, pattern='^customer_profile$'),
+                CallbackQueryHandler(back_to_menu, pattern='^back$')
+            ],
+            MANAGE_DISCOUNTS: [
+                CallbackQueryHandler(add_discount, pattern='^add_discount$'),
+                CallbackQueryHandler(list_discounts, pattern='^list_discounts$'),
+                CallbackQueryHandler(delete_discount, pattern='^delete_discount$'),
+                CallbackQueryHandler(back_to_menu, pattern='^back$')
+            ],
+            ADD_DISCOUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_add_discount),
+                CallbackQueryHandler(back_to_menu, pattern='^back$')
+            ],
+            ENTER_DISCOUNT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_discount_code),
                 CallbackQueryHandler(back_to_menu, pattern='^back$')
             ]
         },
