@@ -2134,7 +2134,12 @@ def main() -> None:
             db['user_profiles'] = {}
             save_db(db)
     
+    # تنظیمات polling
     application = Application.builder().token(TOKEN).build()
+    
+    # تنظیمات polling برای جلوگیری از تداخل
+    application.bot_data['polling'] = True
+    application.bot_data['last_update_id'] = 0
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -2240,8 +2245,33 @@ def main() -> None:
     # اضافه کردن هندلر خطا
     application.add_error_handler(ErrorHandler.handle_error)
     
-    # شروع ربات
-    application.run_polling()
+    try:
+        # شروع ربات با تنظیمات polling
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+            pool_timeout=30,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_size=8
+        )
+    except Exception as e:
+        logger.error(f"Error in main: {e}")
+        # پاکسازی در صورت خطا
+        if 'polling' in application.bot_data:
+            del application.bot_data['polling']
+        raise
+    finally:
+        # پاکسازی در پایان اجرا
+        if 'polling' in application.bot_data:
+            del application.bot_data['polling']
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot stopped due to error: {e}")
+        sys.exit(1)
