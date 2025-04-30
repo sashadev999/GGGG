@@ -2238,7 +2238,7 @@ def main() -> None:
             ]
         },
         fallbacks=[CommandHandler('start', start)],
-        per_message=True,
+        per_message=False,
         per_chat=True,
         per_user=True,
         allow_reentry=True
@@ -2257,8 +2257,7 @@ def main() -> None:
             pool_timeout=30,
             read_timeout=30,
             write_timeout=30,
-            connect_timeout=30,
-            pool_size=8
+            connect_timeout=30
         )
     except Exception as e:
         logger.error(f"Error in main: {e}")
