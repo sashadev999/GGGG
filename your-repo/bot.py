@@ -2237,7 +2237,11 @@ def main() -> None:
                 CallbackQueryHandler(back_to_menu, pattern='^back$')
             ]
         },
-        fallbacks=[CommandHandler('start', start)]
+        fallbacks=[CommandHandler('start', start)],
+        per_message=True,
+        per_chat=True,
+        per_user=True,
+        allow_reentry=True
     )
 
     application.add_handler(conv_handler)
