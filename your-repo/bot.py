@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timedelta
 import traceback
 import sys
+from typing import Tuple
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -1179,7 +1180,7 @@ class DiscountManager:
         }
     
     @staticmethod
-    def validate_discount_code(code: str, amount: int) -> tuple[bool, str]:
+    def validate_discount_code(code: str, amount: int) -> Tuple[bool, str]:
         """بررسی اعتبار کد تخفیف"""
         db = load_db()
         if code not in db['discount_codes']:
