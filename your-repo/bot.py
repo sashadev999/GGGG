@@ -2078,13 +2078,34 @@ async def show_customer_profile(update: Update, context: ContextTypes.DEFAULT_TY
     
     profile = db['user_profiles'][str(user_id)]
     
+    # اطمینان از وجود فیلدهای ضروری
+    if 'referral_code' not in profile:
+        profile['referral_code'] = f"REF{user_id}"
+        save_db(db)
+    
+    if 'referrals' not in profile:
+        profile['referrals'] = []
+        save_db(db)
+    
     # محاسبه تعداد معرفی‌های موفق
     successful_referrals = len(profile.get('referrals', []))
     remaining_referrals = 3 - successful_referrals
     
     text = f"""
-👥 *معرفی به دوستان*
+👤 *پروفایل کاربری*
 
+🔹 نام: {profile['name']}
+🔹 یوزرنیم: @{profile['username']}
+🔹 تاریخ عضویت: {profile['join_date']}
+🔹 سطح: {profile['level']}
+🔹 امتیاز: {profile['points']}
+
+🛒 *اطلاعات خرید*:
+🔹 تعداد سفارشات: {profile['total_orders']}
+🔹 مجموع خرید: {profile['total_spent']:,} تومان
+🔹 اعتبار: {profile['credit']:,} تومان
+
+👥 *معرفی به دوستان*:
 🔹 تعداد معرفی‌های موفق: {successful_referrals}
 🔹 تعداد معرفی‌های باقیمانده تا دریافت کد تخفیف: {remaining_referrals}
 
