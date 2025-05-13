@@ -812,10 +812,11 @@ async def send_message_to_user(update: Update, context: ContextTypes.DEFAULT_TYP
         return MENU
     
     await update.callback_query.edit_message_text(
-        "لطفا آیدی عددی کاربر و پیام را به این فرمت ارسال کنید:\n"
-        "user_id|پیام شما\n\n"
-        "مثال:\n"
-        "123456789|سلام، پیام شما دریافت شد."
+        "لطفا آیدی یا یوزرنیم کاربر و پیام را به این فرمت ارسال کنید:\n"
+        "شناسه کاربر|پیام شما\n\n"
+        "مثال‌ها:\n"
+        "123456789|سلام، پیام شما دریافت شد.\n"
+        "@username|سلام، پیام شما دریافت شد."
     )
     return SEND_MESSAGE
 
@@ -833,13 +834,23 @@ async def handle_send_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         message = parts[1].strip()
         
         try:
+            # اگر یوزرنیم بود
             if user_identifier.startswith('@'):
-                user = await context.bot.get_chat(user_identifier)
-                user_id = user.id
                 username = user_identifier
+                try:
+                    user = await context.bot.get_chat(user_identifier)
+                    user_id = user.id
+                except Exception as e:
+                    await update.message.reply_text(f"خطا در یافتن کاربر با یوزرنیم {username}: {str(e)}")
+                    return SEND_MESSAGE
+            # اگر آیدی عددی بود
             else:
-                user_id = int(user_identifier)
-                username = f"کاربر {user_id}"
+                try:
+                    user_id = int(user_identifier)
+                    username = f"کاربر {user_id}"
+                except ValueError:
+                    await update.message.reply_text("آیدی کاربر باید عددی باشد")
+                    return SEND_MESSAGE
             
             try:
                 await context.bot.send_message(
