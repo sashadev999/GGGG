@@ -58,26 +58,6 @@ DEFAULT_DATA = {
             'stock': 100,
             'views': 0,
             'reviews': []
-        },
-        '2': {
-            'name': 'Lite PC',
-            'description': 'سرویس لایت مخصوص کامپیوتر\n- تک کاربره\n- سرعت متوسط\n-ضد بن و کاملا امن\n- پشتیبانی 24/7',
-            'price': '199,000 تومان',
-            'image': None,
-            'category': 'pc',
-            'stock': 100,
-            'views': 0,
-            'reviews': []
-        },
-        '3': {
-            'name': 'Android Visual',
-            'description': 'سرویس مخصوص اندروید\n-تک کاربره\n- درانواع رنگ ها\n-ضد بن و کاملا امن\n- پشتیبانی 24/7',
-            'price': '299,000 تومان',
-            'image': None,
-            'category': 'android',
-            'stock': 100,
-            'views': 0,
-            'reviews': []
         }
     },
     'discount_codes': {},
@@ -841,7 +821,10 @@ async def handle_send_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                     user = await context.bot.get_chat(user_identifier)
                     user_id = user.id
                 except Exception as e:
-                    await update.message.reply_text(f"خطا در یافتن کاربر با یوزرنیم {username}: {str(e)}")
+                    if "chat not found" in str(e).lower():
+                        await update.message.reply_text(f"کاربر با یوزرنیم {username} یافت نشد. ممکن است کاربر ربات را بلاک کرده باشد یا هنوز با ربات شروع به گفتگو نکرده باشد.")
+                    else:
+                        await update.message.reply_text(f"خطا در یافتن کاربر با یوزرنیم {username}: {str(e)}")
                     return SEND_MESSAGE
             # اگر آیدی عددی بود
             else:
@@ -859,7 +842,14 @@ async def handle_send_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
                 await update.message.reply_text(f"پیام با موفقیت به {username} ارسال شد.")
             except Exception as e:
-                await update.message.reply_text(f"خطا در ارسال پیام به {username}: {str(e)}")
+                if "chat not found" in str(e).lower():
+                    await update.message.reply_text(f"نمی‌توان به کاربر {username} پیام ارسال کرد. ممکن است کاربر ربات را بلاک کرده باشد یا هنوز با ربات شروع به گفتگو نکرده باشد.")
+                elif "bot was blocked" in str(e).lower():
+                    await update.message.reply_text(f"کاربر {username} ربات را بلاک کرده است.")
+                elif "user is deactivated" in str(e).lower():
+                    await update.message.reply_text(f"حساب کاربر {username} غیرفعال شده است.")
+                else:
+                    await update.message.reply_text(f"خطا در ارسال پیام به {username}: {str(e)}")
         
         except Exception as e:
             await update.message.reply_text(f"خطا در یافتن کاربر: {str(e)}")
