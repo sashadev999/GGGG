@@ -812,11 +812,10 @@ async def send_message_to_user(update: Update, context: ContextTypes.DEFAULT_TYP
         return MENU
     
     await update.callback_query.edit_message_text(
-        "لطفا آیدی یا یوزرنیم کاربر و پیام را به این فرمت ارسال کنید:\n"
-        "شناسه کاربر|پیام شما\n\n"
-        "مثال‌ها:\n"
-        "123456789|سلام، پیام شما دریافت شد.\n"
-        "@username|سلام، پیام شما دریافت شد."
+        "لطفا آیدی عددی کاربر و پیام را به این فرمت ارسال کنید:\n"
+        "user_id|پیام شما\n\n"
+        "مثال:\n"
+        "123456789|سلام، پیام شما دریافت شد."
     )
     return SEND_MESSAGE
 
@@ -833,55 +832,26 @@ async def handle_send_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         user_identifier = parts[0].strip()
         message = parts[1].strip()
         
-        db = load_db()
-        user_id = None
-        
         try:
-            # اگر یوزرنیم بود
             if user_identifier.startswith('@'):
-                username = user_identifier[1:]  # حذف @ از ابتدای یوزرنیم
-                # جستجو در دیتابیس برای یافتن آیدی کاربر
-                for user_data in db['user_profiles'].values():
-                    if user_data.get('username') == username:
-                        user_id = int(user_data.get('user_id'))
-                        break
-                
-                if not user_id:
-                    await update.message.reply_text(f"کاربر با یوزرنیم {user_identifier} در دیتابیس یافت نشد.")
-                    return SEND_MESSAGE
-            # اگر آیدی عددی بود
+                user = await context.bot.get_chat(user_identifier)
+                user_id = user.id
+                username = user_identifier
             else:
-                try:
-                    user_id = int(user_identifier)
-                except ValueError:
-                    await update.message.reply_text("آیدی کاربر باید عددی باشد")
-                    return SEND_MESSAGE
+                user_id = int(user_identifier)
+                username = f"کاربر {user_id}"
             
-            # تلاش برای ارسال پیام
             try:
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=f"📩 پیام از مدیریت:\n\n{message}"
                 )
-                await update.message.reply_text(f"پیام با موفقیت به کاربر ارسال شد.")
+                await update.message.reply_text(f"پیام با موفقیت به {username} ارسال شد.")
             except Exception as e:
-                error_msg = str(e).lower()
-                if "chat not found" in error_msg:
-                    await update.message.reply_text(
-                        "خطا در ارسال پیام. لطفا موارد زیر را بررسی کنید:\n"
-                        "1. کاربر با ربات شروع به گفتگو کرده باشد\n"
-                        "2. کاربر ربات را بلاک نکرده باشد\n"
-                        "3. آیدی یا یوزرنیم صحیح باشد"
-                    )
-                elif "bot was blocked" in error_msg:
-                    await update.message.reply_text("کاربر ربات را بلاک کرده است.")
-                elif "user is deactivated" in error_msg:
-                    await update.message.reply_text("حساب کاربر غیرفعال شده است.")
-                else:
-                    await update.message.reply_text(f"خطا در ارسال پیام: {str(e)}")
+                await update.message.reply_text(f"خطا در ارسال پیام به {username}: {str(e)}")
         
         except Exception as e:
-            await update.message.reply_text(f"خطا در پردازش درخواست: {str(e)}")
+            await update.message.reply_text(f"خطا در یافتن کاربر: {str(e)}")
     
     except ValueError as e:
         await update.message.reply_text(f"خطا: {str(e)}\nلطفا فرمت را رعایت کنید.")
